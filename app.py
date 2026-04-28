@@ -12,7 +12,13 @@ TRADE_LIMIT_USD = 100.0
 LOG_FILE = "trading_log.csv"
 
 # Shariah-Compliant US Stock List (Sample for simulation)
-SHARIAH_STOCKS = ["AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "TSLA", "ADBE", "CRM"]
+SHARIAH_STOCKS = [
+    "AAPL", "MSFT", "NVDA", "GOOGL",  # Tech Giants
+    "AMZN", "TSLA", "META",           # Consumer/AI
+    "LLY", "AMGN", "ADBE",            # Healthcare & Software
+    "CRM", "AMD", "INTC",             # Semiconductors/SaaS
+    "EOG", "SWKS", "BBY"              # Energy/Retail/Semi
+]
 
 # Initialize Session State for persistence
 if 'balance' not in st.session_state:
@@ -77,31 +83,54 @@ def log_trade(ticker, action, qty, price):
 st.title("🌙 Shariah-Compliant AI Trader")
 st.subheader(f"Account Balance: ${st.session_state.balance:,.2f} SGD")
 
+# Create a container for the live Signal Tracker
+st.write("### 📡 Live Signal Tracker")
+signal_table = st.empty() 
+
 col1, col2 = st.columns(2)
 with col1:
-    st.write("### Current Positions")
+    st.write("### 📈 Current Positions")
     st.write(st.session_state.portfolio)
 
 with col2:
-    st.write("### Recent Activity")
+    st.write("### 📜 Trade Log (CSV Data)")
     if os.path.exists(LOG_FILE):
         st.dataframe(pd.read_csv(LOG_FILE).tail(5))
 
-# 5. LIVE LOOP (Updated with Status Bar)
-status_placeholder = st.empty() # Creates a space for status updates
+# 5. LIVE LOOP
+status_placeholder = st.empty()
 
 while True:
+    current_signals = [] # List to store data for the tracker table
+    
     with status_placeholder.container():
         with st.status("🚀 AI Engine Active...", expanded=True) as status:
             for stock in SHARIAH_STOCKS:
-                st.write(f"Scanning {stock} charts...")
-                decision = ai_decision_engine(stock)
+                st.write(f"Analyzing {stock}...")
                 
-                if decision != "HOLD":
-                    execute_trade(stock, decision)
-                    st.toast(f"Executed {decision} for {stock}!", icon="💰")
-            
-            status.update(label="✅ Scan Complete. Waiting 60s for next update...", state="complete", expanded=False)
+                # Modified ai_engine to return values for the table
+                data = yf.download(stock, period="1d", interval="1m", progress=False)
+                if not data.empty and len(data) >= 20:
+                    s_ma = float(data['Close'].rolling(window=5).mean().iloc[-1])
+                    l_ma = float(data['Close'].rolling(window=20).mean().iloc[-1])
+                    diff = s_ma - l_ma
+                    trend = "🟢 Bullish" if diff > 0 else "🔴 Bearish"
+                    
+                    current_signals.append({
+                        "Ticker": stock, 
+                        "5-min SMA": round(s_ma, 2), 
+                        "20-min SMA": round(l_ma, 2), 
+                        "Trend": trend
+                    })
+                    
+                    # Logic to trigger trades
+                    if s_ma > l_ma: execute_trade(stock, "BUY")
+                    elif s_ma < l_ma: execute_trade(stock, "SELL")
+
+            status.update(label="✅ Scan Complete. Resting...", state="complete", expanded=False)
+
+    # Update the Signal Tracker table in the UI
+    signal_table.table(pd.DataFrame(current_signals))
     
     time.sleep(60)
     st.rerun()
