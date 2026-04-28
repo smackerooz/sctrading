@@ -87,13 +87,21 @@ with col2:
     if os.path.exists(LOG_FILE):
         st.dataframe(pd.read_csv(LOG_FILE).tail(5))
 
-# 5. LIVE LOOP (Simulated 1-minute update)
-st.info("The simulation updates every 60 seconds. Keep this tab open.")
+# 5. LIVE LOOP (Updated with Status Bar)
+status_placeholder = st.empty() # Creates a space for status updates
+
 while True:
-    for stock in SHARIAH_STOCKS:
-        decision = ai_decision_engine(stock)
-        if decision != "HOLD":
-            execute_trade(stock, decision)
+    with status_placeholder.container():
+        with st.status("🚀 AI Engine Active...", expanded=True) as status:
+            for stock in SHARIAH_STOCKS:
+                st.write(f"Scanning {stock} charts...")
+                decision = ai_decision_engine(stock)
+                
+                if decision != "HOLD":
+                    execute_trade(stock, decision)
+                    st.toast(f"Executed {decision} for {stock}!", icon="💰")
+            
+            status.update(label="✅ Scan Complete. Waiting 60s for next update...", state="complete", expanded=False)
     
     time.sleep(60)
     st.rerun()
