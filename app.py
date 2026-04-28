@@ -25,19 +25,29 @@ if 'balance' not in st.session_state:
 
 # 2. AI TRADING ALGORITHM (Simple Moving Average Crossover)
 def ai_decision_engine(ticker):
+    # Fetch 1-minute interval data
     data = yf.download(ticker, period="1d", interval="1m", progress=False)
-    if len(data) < 20: return "HOLD"
     
-    # Calculate simple AI signals
+    # Safety Check: Ensure we have at least 20 rows of data to calculate the SMA
+    if len(data) < 20: 
+        return "HOLD"
+    
+    # Calculate Moving Averages
     sma_short = data['Close'].rolling(window=5).mean().iloc[-1]
     sma_long = data['Close'].rolling(window=20).mean().iloc[-1]
     
+    # Final Safety Check: Ensure the calculation resulted in actual numbers
+    import pandas as pd
+    if pd.isna(sma_short) or pd.isna(sma_long):
+        return "HOLD"
+    
+    # The AI Logic (SMA Crossover)
     if sma_short > sma_long:
         return "BUY"
     elif sma_short < sma_long:
         return "SELL"
+        
     return "HOLD"
-
 # 3. EXECUTION LOGIC
 def execute_trade(ticker, action):
     price_usd = yf.Ticker(ticker).fast_info['last_price']
