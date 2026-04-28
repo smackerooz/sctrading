@@ -13,11 +13,21 @@ LOG_FILE = "trading_log.csv"
 
 # Shariah-Compliant US Stock List (Sample for simulation)
 SHARIAH_STOCKS = [
-    "AAPL", "MSFT", "NVDA", "GOOGL",  # Tech Giants
-    "AMZN", "TSLA", "META",           # Consumer/AI
-    "LLY", "AMGN", "ADBE",            # Healthcare & Software
-    "CRM", "AMD", "INTC",             # Semiconductors/SaaS
-    "EOG", "SWKS", "BBY"              # Energy/Retail/Semi
+    # TECHNOLOGY & SEMICONDUCTORS (30)
+    "AAPL", "MSFT", "NVDA", "GOOGL", "AVGO", "ASML", "AMD", "INTC", "ADBE", "CRM", 
+    "TXN", "QCOM", "AMAT", "LRCX", "MU", "ADI", "KLAC", "SNOW", "PLTR", "PANW", 
+    "FTNT", "ZS", "DDOG", "NET", "OKTA", "MDB", "TEAM", "WDAY", "NOW", "SHOP",
+    
+    # HEALTHCARE & BIOTECH (20)
+    "LLY", "JNJ", "AMGN", "VRTX", "REGN", "MRNA", "ISRG", "GILD", "TMO", "DHR", 
+    "IDXX", "A", "BIIB", "BSX", "ZTS", "EW", "ALGN", "DXCM", "MTD", "RMD",
+    
+    # ENERGY, INDUSTRIALS & LOGISTICS (15)
+    "EOG", "SLB", "COP", "HAL", "HES", "XOM", "CVX", "UPS", "FDX", "CAT", 
+    "DE", "HON", "LMT", "GD", "NOC",
+    
+    # CONSUMER, RETAIL & OTHER (10)
+    "TSLA", "LOW", "TJX", "COST", "AZO", "ORLY", "NKE", "SBUX", "CMG", "EL"
 ]
 
 # Initialize Session State for persistence
@@ -147,7 +157,7 @@ while True:
 
     # Update the Signal Tracker table in the UI
     if current_signals:
-        signal_table.table(pd.DataFrame(current_signals))
+        signal_table.dataframe(pd.DataFrame(current_signals), height=400, use_container_width=True)
     
-    time.sleep(60)
+    time.sleep(10)
     st.rerun()
