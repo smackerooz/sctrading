@@ -101,36 +101,53 @@ with col2:
 status_placeholder = st.empty()
 
 while True:
-    current_signals = [] # List to store data for the tracker table
+    current_signals = [] 
     
     with status_placeholder.container():
         with st.status("🚀 AI Engine Active...", expanded=True) as status:
             for stock in SHARIAH_STOCKS:
                 st.write(f"Analyzing {stock}...")
                 
-                # Modified ai_engine to return values for the table
+                # Fetch data
                 data = yf.download(stock, period="1d", interval="1m", progress=False)
+                
+                # FIX: Flatten the table in case it's a MultiIndex
+                if isinstance(data.columns, pd.MultiIndex):
+                    data.columns = data.columns.get_level_values(0)
+
                 if not data.empty and len(data) >= 20:
-                    s_ma = float(data['Close'].rolling(window=5).mean().iloc[-1])
-                    l_ma = float(data['Close'].rolling(window=20).mean().iloc[-1])
-                    diff = s_ma - l_ma
-                    trend = "🟢 Bullish" if diff > 0 else "🔴 Bearish"
-                    
-                    current_signals.append({
-                        "Ticker": stock, 
-                        "5-min SMA": round(s_ma, 2), 
-                        "20-min SMA": round(l_ma, 2), 
-                        "Trend": trend
-                    })
-                    
-                    # Logic to trigger trades
-                    if s_ma > l_ma: execute_trade(stock, "BUY")
-                    elif s_ma < l_ma: execute_trade(stock, "SELL")
+                    try:
+                        # Extract the 'Close' column as a simple Series
+                        close_prices = data['Close']
+                        
+                        s_ma = float(close_prices.rolling(window=5).mean().iloc[-1])
+                        l_ma = float(close_prices.rolling(window=20).mean().iloc[-1])
+                        
+                        diff = s_ma - l_ma
+                        trend = "🟢 Bullish" if diff > 0 else "🔴 Bearish"
+                        
+                        current_signals.append({
+                            "Ticker": stock, 
+                            "5-min SMA": round(s_ma, 2), 
+                            "20-min SMA": round(l_ma, 2), 
+                            "Trend": trend
+                        })
+                        
+                        # Logic to trigger trades
+                        if s_ma > l_ma: 
+                            execute_trade(stock, "BUY")
+                        elif s_ma < l_ma: 
+                            execute_trade(stock, "SELL")
+                            
+                    except Exception as e:
+                        st.write(f"⚠️ Skipping {stock}: Data format issue.")
+                        continue
 
             status.update(label="✅ Scan Complete. Resting...", state="complete", expanded=False)
 
     # Update the Signal Tracker table in the UI
-    signal_table.table(pd.DataFrame(current_signals))
+    if current_signals:
+        signal_table.table(pd.DataFrame(current_signals))
     
     time.sleep(60)
     st.rerun()
