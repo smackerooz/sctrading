@@ -72,7 +72,7 @@ c2.metric("Active Positions", active_trades)
 c3.write(f"🕒 **Current SGT:** {datetime.now(SGT).strftime('%H:%M:%S')}")
 
 st.write("---")
-st.subheader("📡 Live Signal Tracker")
+st.subheader("📡 Live Signal Tracker (Tracking a Total of 75 Stocks)")
 signal_table = st.empty()
 
 col_left, col_right = st.columns(2)
