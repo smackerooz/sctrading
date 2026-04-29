@@ -61,7 +61,7 @@ def log_trade(ticker, action, qty, price):
 
 # 3. DASHBOARD UI
 st.set_page_config(page_title="AI Shariah Trader", layout="wide")
-st.title("🌙 Shariah-Compliant AI Scalper (by ROOZ)")
+st.title("🌙 Shariah-Compliant AI Scalper (by Rooz)")
 
 # Top Stats
 c1, c2, c3 = st.columns(3)
