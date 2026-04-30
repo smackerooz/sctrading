@@ -76,13 +76,18 @@ st.subheader("📡 Live Signal Tracker (Tracking a Total of 75 Stocks)")
 signal_table = st.empty()
 
 col_left, col_right = st.columns(2)
-with col_left:
-    st.write("### 📈 Current Holdings")
-    holdings_data = []
-    for ticker, qty in st.session_state.portfolio.items():
-        if qty > 0:
-            entry = st.session_state.entry_prices[ticker]
-            holdings_data.append({"Stock": ticker, "Qty": round(qty, 4), "Entry Price ($)": entry})
+with col_right:
+    st.write("### 📜 Recent Logs (SGT)")
+    if os.path.exists(LOG_FILE):
+        try:
+            # FIX: Only read the last 50 lines of the CSV to save memory
+            # This prevents the "MemoryError" or "ParserError"
+            log_tail = pd.read_csv(LOG_FILE).tail(50)
+            
+            # Reverse it so the newest trades are at the top
+            st.dataframe(log_tail.iloc[::-1], use_container_width=True)
+        except Exception as e:
+            st.warning("Log file is being updated... wait a moment.")
     
     if holdings_data:
         st.table(pd.DataFrame(holdings_data))
