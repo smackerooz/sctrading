@@ -10,6 +10,7 @@ import os
 INITIAL_BALANCE_SGD = 10000.0
 USD_SGD_RATE = 1.35  
 TRADE_LIMIT_USD = 100.0
+CASH_BUFFER_SGD = 5000.0  # Protecting 50% of your capital
 LOG_FILE = "trading_log.csv"
 SGT = pytz.timezone('Asia/Singapore')
 
@@ -34,7 +35,7 @@ if 'balance' not in st.session_state:
         df = pd.DataFrame(columns=["Timestamp_SGT", "Stock", "Action", "Quantity", "Price_USD", "Balance_SGD"])
         df.to_csv(LOG_FILE, index=False)
 
-# 2. EXECUTION LOGIC WITH PROFIT TARGETS
+# 2. EXECUTION LOGIC
 def execute_trade(ticker, action, price_usd):
     price_sgd = price_usd * USD_SGD_RATE
     
@@ -53,7 +54,6 @@ def execute_trade(ticker, action, price_usd):
         log_trade(ticker, "SELL", qty, price_usd)
 
 def log_trade(ticker, action, qty, price):
-    # Capture time in SGT
     now_sgt = datetime.now(SGT).strftime('%Y-%m-%d %H:%M:%S')
     new_entry = pd.DataFrame([[now_sgt, ticker, action, qty, price, st.session_state.balance]], 
                              columns=["Timestamp_SGT", "Stock", "Action", "Quantity", "Price_USD", "Balance_SGD"])
@@ -68,81 +68,80 @@ c1, c2, c3 = st.columns(3)
 c1.metric("Account Balance", f"${st.session_state.balance:,.2f} SGD")
 active_trades = sum(1 for v in st.session_state.portfolio.values() if v > 0)
 c2.metric("Active Positions", active_trades)
-# Show Current SG Time on Dashboard
 c3.write(f"🕒 **Current SGT:** {datetime.now(SGT).strftime('%H:%M:%S')}")
 
 st.write("---")
-st.subheader("📡 Live Signal Tracker (Tracking a Total of 75 Stocks)")
-signal_table = st.empty()
 
 col_left, col_right = st.columns(2)
-with col_right:
-    st.write("### 📜 Recent Logs (SGT)")
-    if os.path.exists(LOG_FILE):
-        try:
-            # FIX: Only read the last 50 lines of the CSV to save memory
-            # This prevents the "MemoryError" or "ParserError"
-            log_tail = pd.read_csv(LOG_FILE).tail(50)
-            
-            # Reverse it so the newest trades are at the top
-            st.dataframe(log_tail.iloc[::-1], use_container_width=True)
-        except Exception as e:
-            st.warning("Log file is being updated... wait a moment.")
+
+with col_left:
+    st.subheader("📈 Current Holdings")
+    holdings_data = [] # Fix for NameError
+    for ticker, qty in st.session_state.portfolio.items():
+        if qty > 0:
+            entry = st.session_state.entry_prices.get(ticker, 0)
+            holdings_data.append({"Stock": ticker, "Qty": round(qty, 4), "Entry ($)": entry})
     
     if holdings_data:
         st.table(pd.DataFrame(holdings_data))
     else:
-        st.info("No active trades. Scanning for entries...")
+        st.info("No active trades. Scanning for signals...")
 
 with col_right:
-    st.write("### 📜 Recent Logs (SGT)")
+    st.subheader("📜 Recent Logs (SGT)")
     if os.path.exists(LOG_FILE):
-        st.dataframe(pd.read_csv(LOG_FILE).tail(10), use_container_width=True)
+        try:
+            # Memory fix: only read last 30 entries
+            log_df = pd.read_csv(LOG_FILE).tail(30)
+            st.dataframe(log_df.iloc[::-1], use_container_width=True)
+        except:
+            st.error("Log temporarily unavailable.")
+
+st.write("---")
+st.subheader("📡 Live Signal Tracker")
+signal_table = st.empty()
 
 # 4. LIVE TRADING LOOP
 status_placeholder = st.empty()
 
 while True:
     current_signals = []
-    
     with status_placeholder.container():
-        with st.status(f"🚀 AI Scanning... (SGT: {datetime.now(SGT).strftime('%H:%M:%S')})", expanded=True) as status:
+        with st.status(f"🚀 Scanning 75 Stocks... (SGT: {datetime.now(SGT).strftime('%H:%M:%S')})", expanded=True) as status:
             for stock in SHARIAH_STOCKS:
                 try:
                     data = yf.download(stock, period="1d", interval="1m", progress=False)
-                    
                     if isinstance(data.columns, pd.MultiIndex):
                         data.columns = data.columns.get_level_values(0)
 
                     if not data.empty and len(data) >= 20:
-                        close_prices = data['Close']
-                        curr_p = float(close_prices.iloc[-1])
-                        s_ma = float(close_prices.rolling(window=5).mean().iloc[-1])
-                        l_ma = float(close_prices.rolling(window=20).mean().iloc[-1])
+                        curr_p = float(data['Close'].iloc[-1])
+                        s_ma = float(data['Close'].rolling(window=5).mean().iloc[-1])
+                        l_ma = float(data['Close'].rolling(window=20).mean().iloc[-1])
                         
                         trend = "🟢 Bullish" if s_ma > l_ma else "🔴 Bearish"
                         current_signals.append({"Ticker": stock, "Price": round(curr_p, 2), "Trend": trend})
 
-                        # --- TRADING LOGIC ---
+                        # --- LOGIC ---
+                        # SELL if 2% Profit OR Trend Flip
                         if st.session_state.portfolio[stock] > 0:
                             entry_p = st.session_state.entry_prices[stock]
                             profit_pct = (curr_p - entry_p) / entry_p
                             
                             if profit_pct >= 0.02:
                                 execute_trade(stock, "SELL", curr_p)
-                                st.toast(f"💰 PROFIT! Sold {stock} at +2%", icon="✅")
+                                st.toast(f"💰 PROFIT: {stock} at +2%!", icon="✅")
                             elif s_ma < l_ma:
                                 execute_trade(stock, "SELL", curr_p)
-                                st.toast(f"📉 Trend Exit: Sold {stock}", icon="⚠️")
+                                st.toast(f"📉 Trend Exit: {stock}", icon="⚠️")
 
-                        elif s_ma > l_ma and st.session_state.balance > 500:
+                        # BUY if Bullish + above Cash Buffer
+                        elif s_ma > l_ma and st.session_state.balance > CASH_BUFFER_SGD:
                             if st.session_state.portfolio[stock] == 0:
                                 execute_trade(stock, "BUY", curr_p)
                                 st.toast(f"🚀 Buying {stock}", icon="📈")
-
-                except Exception:
+                except:
                     continue
-
             status.update(label="✅ Scan Complete.", state="complete", expanded=False)
 
     if current_signals:
